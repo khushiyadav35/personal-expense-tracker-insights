@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  spendwise-app:
+    build: .
+    container_name: spendwise-ai
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
