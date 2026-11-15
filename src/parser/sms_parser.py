@@ -122,18 +122,26 @@ class BankSMSParser:
 
         # 6. Extract Merchant
         merchant = "MISC_TRANSACTION"
-        # Common patterns: "to <MERCHANT>.", "transfer to <MERCHANT>", "at <MERCHANT>.", "by UPI: <MERCHANT>."
-        m_match = re.search(
-            r"(?:to|transfer to|at|by upi:?|paid to|received from|by)\s+([A-Za-z0-9\s&'\.\-_]+?)(?=(?:\.|\s+ref|\s+on|\s+avl|\s+net|\s+using|\s+upi\s+ref|$))",
-            clean_text,
-            re.IGNORECASE
-        )
-        if m_match:
-            candidate = m_match.group(1).strip()
-            # Clean unwanted tokens from merchant
-            candidate = re.sub(r"^(upi:?|vpa:?|acct|a/c)\s*", "", candidate, flags=re.IGNORECASE).strip()
-            if candidate and len(candidate) > 2 and candidate.upper() not in ["A/C", "YOUR", "THE", "AN"]:
-                merchant = candidate.upper()
+        # Prioritize explicit payment targets over passive clauses
+        candidate = None
+        target_patterns = [
+            r"(?:transfer to|paid to)\s+([A-Za-z0-9\s&'\.\-_]+?)(?=(?:\.|\s+ref|\s+on|\s+avl|\s+net|\s+using|\s+upi\s+ref|$))",
+            r"(?:by upi:?|at)\s+([A-Za-z0-9\s&'\.\-_]+?)(?=(?:\.|\s+ref|\s+on|\s+avl|\s+net|\s+using|\s+upi\s+ref|$))",
+            r"\bto\s+(?!a\/c|acct)([A-Za-z0-9\s&'\.\-_]+?)(?=(?:\.|\s+ref|\s+on|\s+avl|\s+net|\s+using|\s+upi\s+ref|$))",
+            r"(?:received from)\s+([A-Za-z0-9\s&'\.\-_]+?)(?=(?:\.|\s+ref|\s+on|\s+avl|\s+net|\s+using|\s+upi\s+ref|$))",
+            r"\bby\s+(?!rs|inr|upi|debited|credited)([A-Za-z0-9\s&'\.\-_]+?)(?=(?:\.|\s+ref|\s+on|\s+avl|\s+net|\s+using|$))"
+        ]
+        for pattern in target_patterns:
+            m_match = re.search(pattern, clean_text, re.IGNORECASE)
+            if m_match:
+                cand = m_match.group(1).strip()
+                cand = re.sub(r"^(upi:?|vpa:?|acct|a/c)\s*", "", cand, flags=re.IGNORECASE).strip()
+                if cand and len(cand) > 2 and cand.upper() not in ["A/C", "YOUR", "THE", "AN"] and not re.match(r"^(rs|inr)\b", cand, re.IGNORECASE):
+                    candidate = cand
+                    break
+
+        if candidate:
+            merchant = candidate.upper()
 
         # 7. Extract Date
         date_str = datetime.now().strftime("%Y-%m-%d")
